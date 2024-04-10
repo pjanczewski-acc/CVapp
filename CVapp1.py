@@ -11,10 +11,12 @@ import pandas as pd
 import datetime as dt
 import streamlit as st
 import unidecode as ud
-from unidecode import unidecode
-from pptx import Presentation
 
-st.set_page_config(page_title="Warsaw AAI CV select",
+from os.path import exists
+from pptx import Presentation
+from unidecode import unidecode
+
+st.set_page_config(page_title="AI Industry Hub CV select",
                    # page_icon=folder + "/CVapp/images/favicon_accenture.png",
                    layout="wide",
                    initial_sidebar_state="expanded"
@@ -63,21 +65,22 @@ shape_name_dict = {'Text Placeholder 1': 'About me',
 
 # Dictionary of titles per level
 lvl_dict = {
-    "New Associate": 13,
-    "Associate": 12,
-    "Analyst": 11,
-    "Senior Analyst": 10,
-    "Consultant": 9,
-    "Associate Manager": 8,
-    "Manager": 7,
-    "Digital Data Innovation Senior Principal": 7,
-    "Senior Manager": 6,
-    "Associate Director": 5,
-    "Analytics Principal Director": 5,
-    "Accenture leadership": 4
+    "13-New Associate": 13,
+    "12-Associate": 12,
+    "11-Analyst": 11,
+    "10-Senior Analyst": 10,
+    "9-Team Lead/Consultant": 9,
+    "8-Associate Manager": 8,
+    "7-Manager": 7,
+    "7-Digital Data Innovation Senior Principal": 7,
+    "6-Senior Manager": 6,
+    "5-Associate Director": 5,
+    "5-Analytics Principal Director": 5,
+    "4-Accenture leadership": 4,
+    "MD": 4
     }
 sen_vars = {}
-for i in range(5, 13):
+for i in range(4, 13):
     sen_vars[f'sen_{i}'] = False
 
 dpt_DS = False
@@ -135,8 +138,8 @@ def scrap_CVs(CVprs):
 def fill_missing_values(row):
     if pd.isna(row['EID']) and pd.notna(row['Enterprise ID']):
         row['EID'] = row['Enterprise ID']
-    if pd.isna(row['Worker']) and pd.notna(row['sld_nt']):
-        row['Worker'] = row['sld_nt'].title().replace('.', ' ')
+    if pd.isna(row['Worker']) and pd.notna(row['EID']):
+        row['Worker'] = row['EID'].title().replace('.', ' ')
     if pd.isna(row['Resource Name']):
         if pd.notna(row['Worker']):
             row['Resource Name'] = ', '.join(row['Worker'].split()[::-1])
@@ -156,12 +159,11 @@ def load_inputs(AV_file, LCR_file, names_df):
     All_df = pd.merge(All_df, names_df, left_on='EID', right_on='sld_nt', how='outer')
     
     # Apply the function to fill missing values
-    All_df = All_df.apply(fill_missing_values, axis=1)
-    All_df = All_df[['Worker', 'Resource Name', 'EID', 'Management Level', 'People Lead', 'LCR in $', 'First Availability Date']].sort_values('Resource Name')
+    All_df = All_df.apply(fill_missing_values, axis=1).dropna(subset=['EID', 'First Availability Date'], how='all')
+    All_df = All_df.sort_values('Resource Name')
+    All_df = All_df[['Worker', 'Resource Name', 'EID', 'sld_nm', 'Management Level', 'People Lead', 'LCR in $', 'First Availability Date']].sort_values('Resource Name')
     
     return All_df
-
-## TU SKOŃCZYŁEM
 
 def keepSlides(keepID, prs):
 
@@ -210,7 +212,7 @@ def keepSlides(keepID, prs):
 #     return kwd_fnd
 
 
-def main_page(All_df,):
+def main_page(All_df,shapes_df):
 
     st.markdown("Specify criteria to export one-slider CVs")
     st.write("")
@@ -219,9 +221,10 @@ def main_page(All_df,):
 
         av_sl = st.slider("Availability time (in weeks, counted" +
                               " since last Monday): 0=bench, 14=Over 3M",
-                              minue=0, maxue=14)
+                              min_value=0, max_value=14)
         st.write("")
         with st.expander("Seniority level"):
+            sen_4 = st.checkbox("4 - Accenture Leadership")
             sen_5 = st.checkbox("5 - Associate Director")
             sen_6 = st.checkbox("6 - Senior Manager")
             sen_7 = st.checkbox("7 - Manager")
@@ -236,41 +239,46 @@ def main_page(All_df,):
             dpt_DE = st.checkbox("Data Engineering")
             dpt_Oth = st.checkbox("Other")
         
-        # with st.expander("Keywords"):
-        #     st.markdown("<p style='font-size:12px;'>" +
-        #                 "Use AND/OR (never both), eg.:<i>" +
-        #                 " 'machine learning AND Azure AND risk advisory' or " +
-        #                 " 'gcp OR Google Cloud Platform'</i></p>",
-        #                 unsafe_allow_html=True)
-        #     kwd_inp = st.text_input('Text to look up:')
+        with st.expander("Keywords"):
+            st.markdown("<p style='font-size:12px;'>" +
+                        "Use AND/OR (never both), eg.:<i>" +
+                        " 'machine learning AND Azure AND risk advisory' or " +
+                        " 'gcp OR Google Cloud Platform'</i></p>",
+                        unsafe_allow_html=True)
+            kwd_inp = st.text_input('Text to look up:')
             
 
-        with st.expander("Full (preliminary) person list"):
+        with st.expander("Preliminary person list"):
             i = 0
-            for Person in All_df.Worker:
+            for Person in All_df['Worker']:
                 i = i + 1
-                globals()['Person%s' % i] = st.checkbox(Person)
+                globals()['Person%s' % i] = st.checkbox(str(i) + ' ' + Person)
         
         # Premilinary listing before final export
         
         listed = st.form_submit_button("Filter people for final selection")
         if listed: 
+            print('Success!')
+
             # Adding Level 
-            CVdf["Level"] = CVdf.Title.apply(lambda x: lvl_dict.get(x))
+            All_df["Level"] = All_df['Management Level'].apply(lambda x: lvl_dict.get(x))
             
             # Adding availability
-            CVdf["Avlbl"] = 14
+            All_df["Avlbl"] = 14
             currweek = dt.date.today().isocalendar().week
-            AVexl['AVweeks'] = AVexl['Availability week num']-currweek
-            AVexl.loc[AVexl.AVweeks <= av_sl, 'AV'] = 1
-            if av_sl == 14: AVnmlst = list(CVdf.Person)
-            else: AVnmlst = list(AVexl['Full name'][AVexl.AV == 1])
+            All_df['Availability week num'] =  All_df['First Availability Date'].dt.isocalendar().week
+            All_df['AVweeks'] = All_df['Availability week num']-currweek
+            All_df.loc[All_df['AVweeks'] <= av_sl, 'AV'] = 1
+            if av_sl == 14: AVnmlst = list(All_df['Worker'])
+            else: AVnmlst = list(All_df['Worker'][All_df['AV'] == 1])
+            print(All_df[All_df['AV']==1][['Worker', 'First Availability Date', 'Availability week num', 'AV']])
+            ## Tu SKOŃCZYŁEM, aktualizując kolejne przyciski i testując streamlitem
             
             # Counting criteria selected
             
             sen_cnt = 0; dpt_cnt = 0; kwd_cnt = 0; prs_cnt = 0
             
-            for sen in (sen_5, sen_6, sen_7, sen_8,
+            for sen in (sen_4, sen_5, sen_6, sen_7, sen_8,
                             sen_9, sen_10, sen_11, sen_12):
                 if sen: sen_cnt = sen_cnt + 1
 
@@ -278,52 +286,47 @@ def main_page(All_df,):
 
             kwd_cnt = 0
 
-            i = 0
-            for Person in CVdf.Person:
-                i = i + 1
-                if globals()['Person%s' % i]: prs_cnt = prs_cnt + 1
-
             # Creating a name list for final selection
 
-            CVdf['Select'] = 0
-            for j in CVdf.Slide.index:
-                slt = 0
-                # Filter for Avlbl
-                if CVdf.Person.values[j-1] in AVnmlst: slt = slt + 1
+            # All_df['Select'] = 0
+            # for j in All_df['sld_nm'].index:
+            #     slt = 0
+            #     # Filter for Avlbl
+            #     if All_df.Person.values[j-1] in AVnmlst: slt = slt + 1
 
-                # Filter for SenLvl
-                i = 5; 
-                for sen in (sen_5, sen_6, sen_7, sen_8,
-                                sen_9, sen_10, sen_11, sen_12):
-                    if (sen and CVdf.Level.values[j-1] == i): slt = slt + 1
-                    i = i + 1
-                if sen_cnt == 0: slt = slt + 1
+            #     # Filter for SenLvl
+            #     i = 5; 
+            #     for sen in (sen_5, sen_6, sen_7, sen_8,
+            #                     sen_9, sen_10, sen_11, sen_12):
+            #         if (sen and All_df.Level.values[j-1] == i): slt = slt + 1
+            #         i = i + 1
+            #     if sen_cnt == 0: slt = slt + 1
                 
-                # Filter for Dept
-                dptxt = CVdf.Dept.values[j-1][6:9].lower()
-                if dpt_DS and dptxt == 'sci':  slt = slt + 1;
-                if dpt_DE and dptxt == 'eng':  slt = slt + 1;
-                if dpt_Oth and dptxt not in ['sci', 'eng']: slt = slt + 1
-                if dpt_cnt == 0: slt = slt + 1
+            #     # Filter for Dept
+            #     dptxt = All_df.Dept.values[j-1][6:9].lower()
+            #     if dpt_DS and dptxt == 'sci':  slt = slt + 1;
+            #     if dpt_DE and dptxt == 'eng':  slt = slt + 1;
+            #     if dpt_Oth and dptxt not in ['sci', 'eng']: slt = slt + 1
+            #     if dpt_cnt == 0: slt = slt + 1
                 
-                # Filter for Keyword
-                if kwdlookup(kwd_inp, j) == 1: slt = slt + 1
+            #     # Filter for Keyword
+            #     if kwdlookup(kwd_inp, j) == 1: slt = slt + 1
 
-                # Filter for Person names
-                if prs_cnt == 0: slt = slt + 1
-                elif j > 0 and globals()['Person%s' % (j)] == True: slt = slt + 1
+            #     # Filter for Person names
+            #     if prs_cnt == 0: slt = slt + 1
+            #     elif j > 0 and globals()['Person%s' % (j)] == True: slt = slt + 1
 
-                CVdf.Select.values[j-1] = slt
-                global Sel_list
-                if slt == 5: Sel_list.append(CVdf.Person.values[j-1])
+            #     All_df.Select.values[j-1] = slt
+            #     global Sel_list
+            #     if slt == 5: Sel_list.append(All_df.Person.values[j-1])
                 
-            with open(Sel_txt, 'w') as f:
-                i = 0
-                for line in Sel_list: 
-                    i = i + 1; f.write(line)
-                    if i < len(Sel_list): f.write('\n')
+            # with open(Sel_txt, 'w') as f:
+            #     i = 0
+            #     for line in Sel_list: 
+            #         i = i + 1; f.write(line)
+            #         if i < len(Sel_list): f.write('\n')
 
-            # Displaying people for final approval
+           # Displaying people for final approval
 
     # Final export 
     
@@ -346,8 +349,8 @@ def main_page(All_df,):
             # Selecting final slides based on a name list
                
             KeepSLids = []
-            for i, prsn in enumerate(CVdf.Person):
-                if prsn in Fin_list: KeepSLids.append(CVdf.Slide[i])
+            for i, prsn in enumerate(All_df.Person):
+                if prsn in Fin_list: KeepSLids.append(All_df.Slide[i])
     
             keepSlides(KeepSLids, CVprs)
     
@@ -374,6 +377,6 @@ hide_streamlit_style = """
             """
 
 shapes_df, names_df = scrap_CVs(CV_file)
-All_df = load_inputs(AV_file, LCR_file)
+All_df = load_inputs(AV_file, LCR_file, names_df)
 
 main_page(All_df, shapes_df)
