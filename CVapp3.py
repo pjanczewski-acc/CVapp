@@ -15,7 +15,6 @@ import streamlit as st
 import unidecode as ud
 from copy import deepcopy
 
-
 from os.path import exists
 from pptx import Presentation
 from unidecode import unidecode
