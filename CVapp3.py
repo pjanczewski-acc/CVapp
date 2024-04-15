@@ -6,6 +6,7 @@ Created on Mon Jul 11 15:16:27 2022
 """
 
 import os
+import uuid
 import json
 import openai
 import pandas as pd
@@ -33,23 +34,23 @@ st.set_page_config(page_title="AI Industry Hub CV select",
 acn_login = os.getlogin()
 acn_path = "C:/Users/" + acn_login
 
-CV_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/source samples/"
+CV_path = acn_path + "/Accenture/Warsaw Analytics - Documents/01_CVs/"
 CV_flnm = "Warsaw_Analytics_FY23_template.pptx"
 CV_file = CV_path + CV_flnm
 
-AV_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/source samples/"
+AV_path = acn_path + "/Accenture/Staffing & productivity AI group - General/Dashboard/"
 AV_flnm = "myScheduling_People_Extract.xlsx"
 AV_file = AV_path + AV_flnm
 
 LCR_flnm = "Staffing_data - LCR calc.xlsx"
 LCR_file = AV_path + LCR_flnm
 
-Promo_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/source samples/"
+Promo_path = acn_path + "/Accenture/AI Executives Warsaw - General/"
 Promo_flnm = "AI Ind Hub - promo slides.pptx"
 Promo_file = Promo_path + Promo_flnm
 
-App_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/"
-Sel_txt = CV_path + 'sel_list.txt'
+App_path = acn_path + "/Desktop/genAI/CVapp"
+Sel_txt = CV_path + '/CVapp/sel_list.txt'
 
 dest_path = acn_path + "/Desktop/"
 
@@ -93,6 +94,7 @@ dpt_Oth = False
 
 av_sl = 0
 
+filtered_df = pd.DataFrame()
 
 ##############
 # Functions
@@ -105,7 +107,7 @@ def scrap_CVs(CVprs):
 
     for slide in CVprs.slides:
 
-        sldnm = CVprs.slides.index(slide) + 1
+        sld_nm = CVprs.slides.index(slide) + 1
         sldnt = slide.notes_slide
         if sldnt.notes_text_frame:
             sldnt_text = sldnt.notes_text_frame.text
@@ -124,7 +126,7 @@ def scrap_CVs(CVprs):
                     dept = "Other"
 
                 shape_properties = {
-                    'sld_nm': sldnm,
+                    'sld_nm': sld_nm,
                     'sld_nt': sldnt_text,
                     'name': shape.name,
                     'Dept': dept,
@@ -144,7 +146,7 @@ def scrap_CVs(CVprs):
         names_df = shapes_df[['sld_nm', 'sld_nt', 'Dept']].drop_duplicates()
         names_df = names_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
 
-    return shapes_df, names_df
+    return shapes_df, names_df, CVprs
 
 
 # Function to fill missing Worker and Resource Name
@@ -195,17 +197,19 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
             # Usunięcie slajdu z kolekcji
             xml_slides = presentation.slides._sldIdLst
             xml_slides.remove(xml_slides[i])
+            print("sl. " + str(slide.slide_id) + " removed")
+    print("keep_slides_ids w remove")
+    print(keep_slides_ids)
+    return presentation
 
 def create_presentation(filtered_df, presentation, output_path):
-    keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
-    remove_unwanted_slides(presentation, keep_slides_ids)
+    print('sld_nm list')
+    print(filtered_df['sld_nm'].to_list())
+    keep_slides_ids = filtered_df['sld_nm'].astype(str)
+    print("keep_slides_ids w create_presentation")
+    print(keep_slides_ids)
+    presentation = remove_unwanted_slides(presentation, keep_slides_ids)
     presentation.save(output_path)
-
-#load initial presentation
-def load_presentation(path):
-    return Presentation(path)
-
-loaded_presentation = load_presentation(CV_file)
 
 # def keepSlides(keepID, prs):
 #     # get slides to delete
@@ -254,129 +258,136 @@ loaded_presentation = load_presentation(CV_file)
 #     return kwd_fnd
 
 
-def main_page(All_df, shapes_df):
+def initial_selection(All_df, shapes_df):
     st.markdown("Specify criteria to export one-slider CVs")
     st.write("")
 
-    with st.form("CV selection", clear_on_submit=False):
+    # with st.form("CV selection", clear_on_submit=False):
 
-        av_sl = st.slider("Availability time (in weeks, counted" +
-                          " since last Monday): 0=bench, 14=Over 3M",
-                          min_value=0, max_value=14)
-        st.write("")
-        seniority_checks = {}
-        with st.expander("Seniority level"):
-            seniority_levels = [
-                "4 - Accenture Leadership", 
-                "5 - Associate Director", 
-                "6 - Senior Manager",
-                "7 - Manager", 
-                "8 - Associate Manager", 
-                "9 - Team Lead/Consultant",
-                "10 - Senior Analyst", 
-                "11 - Analyst", 
-                "12 - Below Analyst"
-            ]
+    av_sl = st.slider("Availability time (in weeks, counted" +
+                        " since last Monday): 0=bench, 14=Over 3M",
+                        min_value=0, max_value=14)
+    st.write("")
+    seniority_checks = {}
+    with st.expander("Seniority level"):
+        seniority_levels = [
+            "4 - Accenture Leadership", 
+            "5 - Associate Director", 
+            "6 - Senior Manager",
+            "7 - Manager", 
+            "8 - Associate Manager", 
+            "9 - Team Lead/Consultant",
+            "10 - Senior Analyst", 
+            "11 - Analyst", 
+            "12 - Below Analyst"
+        ]
 
-            for level in seniority_levels:
-                level_id = int(level.split(' - ')[0])
-                seniority_checks[level_id] = st.checkbox(level)
+        for level in seniority_levels:
+            level_id = int(level.split(' - ')[0])
+            seniority_checks[level_id] = st.checkbox(level)
 
-        with st.expander("Department/profile"):
-            dpt_DS = st.checkbox("Data Science")
-            dpt_DE = st.checkbox("Data Engineering")
-            dpt_Oth = st.checkbox("Other")
+    with st.expander("Department/profile"):
+        dpt_DS = st.checkbox("Data Science")
+        dpt_DE = st.checkbox("Data Engineering")
+        dpt_Oth = st.checkbox("Other")
 
-        with st.expander("Keywords"):
-            st.markdown("<p style='font-size:12px;'>" +
-                        "Use AND/OR (never both), eg.:<i>" +
-                        " 'machine learning AND Azure AND risk advisory' or " +
-                        " 'gcp OR Google Cloud Platform'</i></p>",
-                        unsafe_allow_html=True)
-            kwd_inp = st.text_input('Text to look up:')
+    with st.expander("Keywords"):
+        st.markdown("<p style='font-size:12px;'>" +
+                    "Use AND/OR (never both), eg.:<i>" +
+                    " 'machine learning AND Azure AND risk advisory' or " +
+                    " 'gcp OR Google Cloud Platform'</i></p>",
+                    unsafe_allow_html=True)
+        kwd_inp = st.text_input('Text to look up:')
 
-        All_df.reset_index(drop=True, inplace=True)
+    All_df.reset_index(drop=True, inplace=True)
 
-        person_checks = {}
-        with st.expander("Preliminary person list"):
-            for index, Person in enumerate(All_df['Worker'], start=0):
-                person_checks[index] = st.checkbox(f"{index} {Person}")
+    person_checks = {}
+    with st.expander("Preliminary person list"):
+        for index, Person in enumerate(All_df['Worker'], start=0):
+            person_checks[index] = st.checkbox(f"{index} {Person}")
 
-        # Premilinary listing before final export
+    # Premilinary listing before final export
 
-        All_df['Select'] = False
-        All_df['AV'] = 0
+    All_df['Select'] = False
+    All_df['AV'] = 0
 
-        listed = st.form_submit_button("Filter people for final selection")
-        if listed:
-            print('Success!')
-            active_filters_count =0
-            # Counting active filters
-            if any(seniority_checks.values()):
-                active_filters_count += 1
-            active_filters_count += (dpt_DS or dpt_DE or dpt_Oth) + bool(kwd_inp)
+    listed = st.button("Filter people for final selection")
+    if listed:
+        filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
 
-            # Adding Level
-            All_df["Level"] = All_df['Management Level'].apply(lambda x: lvl_dict.get(x))
+    # Displaying people for final approval
+    filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
+    
+    with st.expander("Filtered people list"):
+        for index, row in filtered_df.iterrows():
+            st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+       
+    print("======================================")
+    print(filtered_df['sld_nm'].to_list())
 
-            # Adding availability
-            All_df["Avlbl"] = 14
-            currweek = dt.date.today().isocalendar().week
-            All_df['Availability week num'] = All_df['First Availability Date'].dt.isocalendar().week
-            All_df['AVweeks'] = All_df['Availability week num'] - currweek
-            All_df.loc[All_df['AVweeks'] <= av_sl, 'AV'] = 1
+    return filtered_df, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl
 
+def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl):
+    print('Success!')
+    active_filters_count =0
+    # Counting active filters
+    if any(seniority_checks.values()):
+        active_filters_count += 1
+    active_filters_count += (dpt_DS or dpt_DE or dpt_Oth) + bool(kwd_inp)
 
-            # Flitering criteria
-            for index, row in All_df.iterrows():
-                matched_criteria_count = 0
+    # Adding Level
+    All_df["Level"] = All_df['Management Level'].apply(lambda x: lvl_dict.get(x))
 
-                # Counting criteria selected
-                if row['Level'] in [lvl for lvl, checked in seniority_checks.items() if checked]:
-                     matched_criteria_count += 1
+    # Adding availability
+    All_df["Avlbl"] = 14
+    currweek = dt.date.today().isocalendar().week
+    All_df['Availability week num'] = All_df['First Availability Date'].dt.isocalendar().week
+    All_df['AVweeks'] = All_df['Availability week num'] - currweek
+    All_df.loc[All_df['AVweeks'] <= av_sl, 'AV'] = 1
 
-                if ((dpt_DS and 'sci' in row['Dept'].lower()) or
-                        (dpt_DE and 'eng' in row['Dept'].lower()) or
-                        (dpt_Oth and 'sci' not in row['Dept'].lower() and 'eng' not in row['Dept'].lower())):
-                    matched_criteria_count += 1
+    # Flitering criteria
+    for index, row in All_df.iterrows():
+        matched_criteria_count = 0
 
-                # kwd_imp should be here
+        # Counting criteria selected
+        if row['Level'] in [lvl for lvl, checked in seniority_checks.items() if checked]:
+                matched_criteria_count += 1
 
-                
-                    
+        if ((dpt_DS and 'sci' in row['Dept'].lower()) or
+                (dpt_DE and 'eng' in row['Dept'].lower()) or
+                (dpt_Oth and 'sci' not in row['Dept'].lower() and 'eng' not in row['Dept'].lower())):
+            matched_criteria_count += 1
 
-                All_df.loc[index, 'Select'] = matched_criteria_count == active_filters_count
+        # kwd_imp should be here
 
-                # Checking initial people list
-                if person_checks.get(index):
-                    All_df.loc[index, 'Select'] = True
-                    All_df.loc[index, 'AV'] = 1
-            
+        All_df.loc[index, 'Select'] = matched_criteria_count == active_filters_count
 
-        # Displaying people for final approval
-        filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
-        print(filtered_df)
-        
-        
-        with st.expander("Filtered people list"):
-            for index, row in filtered_df.iterrows():
-                st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+        # Checking initial people list
+        if person_checks.get(index):
+            All_df.loc[index, 'Select'] = True
+            All_df.loc[index, 'AV'] = 1
 
-
-
+def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl):
     # Final export 
 
-    with st.form("CV export", clear_on_submit=False):
-        dest = st.text_input("Enter the directory path to save the file:", "path/to/directory")
-        out_fn = st.text_input("Output file name", "CVs_free.pptx")
-        submit_button = st.form_submit_button("Export all slides for the filtered people list")
-        
-        if submit_button:
-            if not out_fn:
-                out_fn = "CVs_free.pptx"  
-            output_path = f"{dest}/{out_fn if out_fn.endswith('.pptx') else out_fn + '.pptx'}"
-            create_presentation(filtered_df, loaded_presentation, output_path)
-            st.success(f"Exported successfully to {output_path}")
+    dest = st.text_input("Enter the directory path to save the file:", "path/to/directory")
+    out_fn = st.text_input("Output file name", "CVs_free.pptx")
+    export_button = st.button("Export all slides for the filtered people list")
+
+    print("======================================")
+    print("Tuż przed eksportem")
+    print(filtered_df['sld_nm'].to_list())        
+    if export_button:
+        filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
+        print("======================================")
+        print("Tuż po przycisku eksport")
+        print(filtered_df['sld_nm'].to_list())
+        if not out_fn:
+            out_fn = "CVs_free.pptx"  
+        output_path = f"{dest}/{out_fn if out_fn.endswith('.pptx') else out_fn + '.pptx'}"
+
+        create_presentation(filtered_df, CVprs, output_path)
+        st.success(f"Exported successfully to {output_path}")
 
     st.markdown("For help, visit [YouTube](https://www.youtube.com/watch?v=WNnzw90vxrE)")
 
@@ -392,7 +403,9 @@ hide_streamlit_style = """
             </style>
             """
 
-shapes_df, names_df = scrap_CVs(CV_file)
+shapes_df, names_df, CVprs = scrap_CVs(CV_file)
 All_df = load_inputs(AV_file, LCR_file, names_df)
 
-main_page(All_df, shapes_df)
+filtered_df, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl = initial_selection(All_df, shapes_df)
+
+final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)

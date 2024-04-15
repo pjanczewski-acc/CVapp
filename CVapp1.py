@@ -272,8 +272,7 @@ def main_page(All_df,shapes_df):
             if av_sl == 14: AVnmlst = list(All_df['Worker'])
             else: AVnmlst = list(All_df['Worker'][All_df['AV'] == 1])
             print(All_df[All_df['AV']==1][['Worker', 'First Availability Date', 'Availability week num', 'AV']])
-            ## Tu SKOŃCZYŁEM, aktualizując kolejne przyciski i testując streamlitem
-            
+                
             # Counting criteria selected
             
             sen_cnt = 0; dpt_cnt = 0; kwd_cnt = 0; prs_cnt = 0
@@ -288,43 +287,43 @@ def main_page(All_df,shapes_df):
 
             # Creating a name list for final selection
 
-            # All_df['Select'] = 0
-            # for j in All_df['sld_nm'].index:
-            #     slt = 0
-            #     # Filter for Avlbl
-            #     if All_df.Person.values[j-1] in AVnmlst: slt = slt + 1
+            All_df['Select'] = 0
+            for j in All_df['sld_nm']:
+                slt = 0
+                # Filter for Avlbl
+                if All_df['Worker'].values[j-1] in AVnmlst: slt = slt + 1
 
-            #     # Filter for SenLvl
-            #     i = 5; 
-            #     for sen in (sen_5, sen_6, sen_7, sen_8,
-            #                     sen_9, sen_10, sen_11, sen_12):
-            #         if (sen and All_df.Level.values[j-1] == i): slt = slt + 1
-            #         i = i + 1
-            #     if sen_cnt == 0: slt = slt + 1
+                # Filter for SenLvl
+                i = 4; 
+                for sen in (sen_4, sen_5, sen_6, sen_7, sen_8,
+                                sen_9, sen_10, sen_11, sen_12):
+                    if (sen and All_df.Level.values[j-1] == i): slt = slt + 1
+                    i = i + 1
+                if sen_cnt == 0: slt = slt + 1
                 
-            #     # Filter for Dept
-            #     dptxt = All_df.Dept.values[j-1][6:9].lower()
-            #     if dpt_DS and dptxt == 'sci':  slt = slt + 1;
-            #     if dpt_DE and dptxt == 'eng':  slt = slt + 1;
-            #     if dpt_Oth and dptxt not in ['sci', 'eng']: slt = slt + 1
-            #     if dpt_cnt == 0: slt = slt + 1
+                # Filter for Dept
+                dptxt = All_df.Dept.values[j-1][6:9].lower()
+                if dpt_DS and dptxt == 'sci':  slt = slt + 1
+                if dpt_DE and dptxt == 'eng':  slt = slt + 1
+                if dpt_Oth and dptxt not in ['sci', 'eng']: slt = slt + 1
+                if dpt_cnt == 0: slt = slt + 1
                 
-            #     # Filter for Keyword
-            #     if kwdlookup(kwd_inp, j) == 1: slt = slt + 1
+                # Filter for Keyword
+                if kwdlookup(kwd_inp, j) == 1: slt = slt + 1
 
-            #     # Filter for Person names
-            #     if prs_cnt == 0: slt = slt + 1
-            #     elif j > 0 and globals()['Person%s' % (j)] == True: slt = slt + 1
+                # Filter for Person names
+                if prs_cnt == 0: slt = slt + 1
+                elif j > 0 and globals()['Person%s' % (j)] == True: slt = slt + 1
 
-            #     All_df.Select.values[j-1] = slt
-            #     global Sel_list
-            #     if slt == 5: Sel_list.append(All_df.Person.values[j-1])
+                All_df.Select.values[j-1] = slt
+                global Sel_list
+                if slt == 5: Sel_list.append(All_df.Person.values[j-1])
                 
-            # with open(Sel_txt, 'w') as f:
-            #     i = 0
-            #     for line in Sel_list: 
-            #         i = i + 1; f.write(line)
-            #         if i < len(Sel_list): f.write('\n')
+            with open(Sel_txt, 'w') as f:
+                i = 0
+                for line in Sel_list: 
+                    i = i + 1; f.write(line)
+                    if i < len(Sel_list): f.write('\n')
 
            # Displaying people for final approval
 
