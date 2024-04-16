@@ -6,19 +6,11 @@ Created on Mon Jul 11 15:16:27 2022
 """
 
 import os
-import uuid
-import json
 import openai
 import pandas as pd
 import datetime as dt
 import streamlit as st
-import unidecode as ud
-from copy import deepcopy
-
-
-from os.path import exists
 from pptx import Presentation
-from unidecode import unidecode
 
 st.set_page_config(page_title="AI Industry Hub CV select",
                    # page_icon=folder + "/CVapp/images/favicon_accenture.png",
