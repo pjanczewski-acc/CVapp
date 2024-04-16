@@ -182,7 +182,6 @@ def load_inputs(AV_file, LCR_file, names_df):
     All_df = All_df.dropna(subset=['sld_nm'])
     return All_df
 
-
 def remove_unwanted_slides(presentation, keep_slides_ids):
     """
     Usuwa slajdy, które nie znajdują się w podanym zbiorze identyfikatorów.
@@ -190,16 +189,12 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
     presentation (Presentation): Obiekt prezentacji.
     keep_slides_ids (set): Zbiór identyfikatorów slajdów do zachowania.
     """
-    # Iterowanie po liście slajdów w odwrotnej kolejności, aby nie zakłócać indeksów przy usuwaniu
-    for i in reversed(range(len(presentation.slides))):
-        slide = presentation.slides[i]
-        if str(slide.slide_id) not in keep_slides_ids:
-            # Usunięcie slajdu z kolekcji
-            xml_slides = presentation.slides._sldIdLst
-            xml_slides.remove(xml_slides[i])
-            print("sl. " + str(slide.slide_id) + " removed")
-    print("keep_slides_ids w remove")
-    print(keep_slides_ids)
+    slides_to_remove = [slide for slide in presentation.slides if str(slide.slide_id) not in keep_slides_ids]
+
+    # Remove slides
+    for slide in slides_to_remove:
+        presentation.slides.remove(slide)
+
     return presentation
 
 def create_presentation(filtered_df, presentation, output_path):
@@ -315,17 +310,18 @@ def initial_selection(All_df, shapes_df):
     if listed:
         filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
 
-    # Displaying people for final approval
-    filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
-    
-    with st.expander("Filtered people list"):
-        for index, row in filtered_df.iterrows():
-            st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+        # Displaying people for final approval
+        st.session_state.filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
+        filtered_df = st.session_state.filtered_df
        
-    print("======================================")
-    print(filtered_df['sld_nm'].to_list())
+        print("======================================")
+        print(filtered_df['sld_nm'].to_list())
 
-    return filtered_df, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl
+        with st.expander("Filtered people list"):
+            for index, row in filtered_df.iterrows():
+                st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+
+        filtered_df.to_csv("filtered_df.csv")
 
 def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl):
     print('Success!')
@@ -367,25 +363,21 @@ def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_
             All_df.loc[index, 'Select'] = True
             All_df.loc[index, 'AV'] = 1
 
-def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl):
+def final_export(filtered_df, CVprs):
     # Final export 
 
-    dest = st.text_input("Enter the directory path to save the file:", "path/to/directory")
+    dest = st.text_input("Enter the directory path to save the file:", acn_path)
     out_fn = st.text_input("Output file name", "CVs_free.pptx")
     export_button = st.button("Export all slides for the filtered people list")
-
-    print("======================================")
-    print("Tuż przed eksportem")
-    print(filtered_df['sld_nm'].to_list())        
+     
     if export_button:
-        filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
+        filtered_df = pd.read_csv("filtered_df.csv")
         print("======================================")
         print("Tuż po przycisku eksport")
         print(filtered_df['sld_nm'].to_list())
         if not out_fn:
-            out_fn = "CVs_free.pptx"  
+            out_fn = "AI Ind Hub CVs for .pptx"  
         output_path = f"{dest}/{out_fn if out_fn.endswith('.pptx') else out_fn + '.pptx'}"
-
         create_presentation(filtered_df, CVprs, output_path)
         st.success(f"Exported successfully to {output_path}")
 
@@ -406,6 +398,6 @@ hide_streamlit_style = """
 shapes_df, names_df, CVprs = scrap_CVs(CV_file)
 All_df = load_inputs(AV_file, LCR_file, names_df)
 
-filtered_df, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl = initial_selection(All_df, shapes_df)
+initial_selection(All_df, shapes_df)
 
-final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
+final_export(filtered_df, CVprs)

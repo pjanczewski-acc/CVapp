@@ -1,0 +1,5 @@
+,Worker,Resource Name,EID,sld_nm,Management Level,People Lead,LCR in $,First Availability Date,Dept,Select,AV,Level,Avlbl,Availability week num,AVweeks
+7,Piotr Czetwertynski,"Czetwertynski,Piotr",piotr.czetwertynski,9.0,6-Senior Manager,Dominik Perykasza,111,2024-07-01,other,True,1,6.0,14,27,11
+41,Kamil Kuzniak,"Kuzniak,Kamil",kamil.kuzniak,43.0,11-Analyst,Dominik Perykasza,47,2024-05-01,data science,True,1,11.0,14,18,2
+55,Albert Młodziejewski,"Mlodziejewski,Albert",albert.mlodziejewski,57.0,11-Analyst,Anna Drozynska,31,2024-04-29,data science,True,1,11.0,14,18,2
+62,Jakub Paczusko,"Paczusko,Jakub",jakub.paczusko,64.0,11-Analyst,Joanna Biolik,31,2024-04-29,data science,True,1,11.0,14,18,2
