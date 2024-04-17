@@ -14,6 +14,7 @@ import datetime as dt
 import streamlit as st
 import unidecode as ud
 from copy import deepcopy
+from pptx.oxml.xmlchemy import OxmlElement
 
 from os.path import exists
 from pptx import Presentation
@@ -59,6 +60,9 @@ dest_path = acn_path + "/Desktop/"
 
 if 'filtered_df' not in st.session_state:
     st.session_state['filtered_df'] = pd.DataFrame()
+
+if 'first_filtered' not in st.session_state:
+    st.session_state['first_filtered'] = pd.DataFrame()
 
 
 # Dictionary of shape names
@@ -183,9 +187,6 @@ def load_inputs(AV_file, LCR_file, names_df):
     All_df = All_df.dropna(subset=['sld_nm'])
     return All_df
 
-
-
-
 def remove_unwanted_slides(presentation, keep_slides_ids):
     """
     Usuwa slajdy, które nie znajdują się w podanym zbiorze identyfikatorów.
@@ -205,11 +206,11 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
 
     return presentation
 
-
 def create_presentation(filtered_df, presentation, output_path):
     keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
     remove_unwanted_slides(presentation, keep_slides_ids)
     presentation.save(output_path)
+    
 
 # def keepSlides(keepID, prs):
 #     # get slides to delete
@@ -321,11 +322,21 @@ def initial_selection(All_df, shapes_df):
 
     if not filtered_df.empty:
         st.session_state['filtered_df'] = filtered_df
+        st.session_state['first_filtered'] = filtered_df
+
+    
     
     with st.expander("Filtered people list"):
-        for index, row in filtered_df.iterrows():
-            st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
-       
+        for index, row in st.session_state['first_filtered'].iterrows():
+            checked=st.checkbox(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}", value=True)
+            st.session_state['filtered_df'].loc[index, 'Select'] = checked
+
+    st.session_state['filtered_df'] = st.session_state['filtered_df'][st.session_state['filtered_df']['Select'] == True]
+    
+    if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
+    # Wybieranie tylko kolumn 'Worker' i 'Select'
+        selected_columns = st.session_state['filtered_df'][['Worker', 'Select']]
+        st.write(selected_columns)
     # print("======================================")
     # print(filtered_df['sld_nm'].to_list())
 
@@ -384,9 +395,12 @@ def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, d
      
     if export_button:
         filtered_df = st.session_state.get('filtered_df', pd.DataFrame())
-        st.write(st.session_state)  
+
         if not filtered_df.empty:
             filtered_df = st.session_state['filtered_df']
+            print("======================================")
+            print("Tuż po przycisku eksport")
+            print(filtered_df['sld_nm'].to_list())
             
             if not out_fn:
                 out_fn = "AI Ind Hub CVs for .pptx"  
