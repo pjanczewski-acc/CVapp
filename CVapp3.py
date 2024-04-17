@@ -8,12 +8,12 @@ Created on Mon Jul 11 15:16:27 2022
 import os
 import openai
 import pandas as pd
+import unidecode as ud
 import datetime as dt
 import streamlit as st
 from pptx import Presentation
 
 st.set_page_config(page_title="AI Industry Hub CV select",
-                   # page_icon=folder + "/CVapp/images/favicon_accenture.png",
                    layout="wide",
                    initial_sidebar_state="expanded"
                    )
