@@ -212,6 +212,32 @@ def create_presentation(filtered_df, presentation, output_path):
     presentation.save(output_path)
     
 
+def export_to_excel(df, filepath):
+    df = df.rename(columns={
+    'Resource Name': 'Name',
+    'Management Level': 'Position Level'
+    })
+
+    # Konwersja i formatowanie daty
+    if 'First Availability Date' in df.columns:
+        df['First Availability Date'] = pd.to_datetime(df['First Availability Date']).dt.strftime('%d.%m.%Y')
+
+    # Filtruj DataFrame, aby zawierał tylko potrzebne kolumny
+    columns_to_export = ['Name', 'EID', 'People Lead', 'Position Level', 'First Availability Date', 'LCR in $']
+    
+    # Sprawdzanie, czy wszystkie wymagane kolumny są w DataFrame
+    if all(column in df.columns for column in columns_to_export):
+        fil_df = df[columns_to_export]
+        print(fil_df)
+        
+        # Eksportowanie do pliku Excel
+        with pd.ExcelWriter(filepath, engine='openpyxl', mode='w') as writer:
+            fil_df.to_excel(writer, index=False)
+        print(f"Data exported successfully to {filepath}")
+    else:
+        missing_columns = [column for column in columns_to_export if column not in df.columns]
+        print(f"Missing columns in DataFrame: {missing_columns}")
+
 # def keepSlides(keepID, prs):
 #     # get slides to delete
 #     ids = [x for x in range(1, len(prs.slides._sldIdLst) + 1) if x not in keepID]
@@ -327,19 +353,13 @@ def initial_selection(All_df, shapes_df):
     
     
     with st.expander("Filtered people list"):
-        for index, row in st.session_state['first_filtered'].iterrows():
-            checked=st.checkbox(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}", value=True)
-            st.session_state['filtered_df'].loc[index, 'Select'] = checked
+        if not st.session_state['first_filtered'].empty:
+            for index, row in st.session_state['first_filtered'].iterrows():
+                checked=st.checkbox(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}", value=True)
+                st.session_state['filtered_df'].loc[index, 'Select'] = checked
 
-    st.session_state['filtered_df'] = st.session_state['filtered_df'][st.session_state['filtered_df']['Select'] == True]
-    
-    if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
-    # Wybieranie tylko kolumn 'Worker' i 'Select'
-        selected_columns = st.session_state['filtered_df'][['Worker', 'Select']]
-        st.write(selected_columns)
-    # print("======================================")
-    # print(filtered_df['sld_nm'].to_list())
-
+    if not st.session_state['filtered_df'].empty:
+        st.session_state['filtered_df'] = st.session_state['filtered_df'][st.session_state['filtered_df']['Select'] == True]
 
     return st.session_state.get('filtered_df', pd.DataFrame()), seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl
 
@@ -391,6 +411,9 @@ def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, d
     dest = st.text_input("Enter the directory path to save the file:", "path/to/directory")
     out_fn = st.text_input("Output file name", "AI Ind Hub CVs for .pptx")
     export_button = st.button("Export all slides for the filtered people list")
+
+    out_fn_excel = st.text_input("Output file name for Excel", "AI Ind Hub CVs table.xlsx")
+    export_excel_button = st.button("Export filtered table data to Excel")
     
      
     if export_button:
@@ -398,9 +421,6 @@ def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, d
 
         if not filtered_df.empty:
             filtered_df = st.session_state['filtered_df']
-            print("======================================")
-            print("Tuż po przycisku eksport")
-            print(filtered_df['sld_nm'].to_list())
             
             if not out_fn:
                 out_fn = "AI Ind Hub CVs for .pptx"  
@@ -408,6 +428,19 @@ def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, d
 
             create_presentation(filtered_df, CVprs, output_path)
             st.success(f"Exported successfully to {output_path}")
+        else:
+            st.error("Please filter the data before exporting.")
+
+    st.write(st.session_state['filtered_df'])
+    if export_excel_button:
+        # Logika eksportu do Excela
+        if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
+            filtered_df = st.session_state['filtered_df']
+            if not out_fn_excel:
+                out_fn = "AI Ind Hub CVs table.xlsx"  
+            output_path = f"{dest}/{out_fn_excel if out_fn_excel.endswith('.xlsx') else out_fn_excel + '.xlsx'}"
+            export_to_excel(filtered_df, output_path)
+            st.success(f"Data exported successfully to {output_path}")
         else:
             st.error("Please filter the data before exporting.")
 
