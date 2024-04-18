@@ -13,7 +13,7 @@ import pandas as pd
 import datetime as dt
 import streamlit as st
 import unidecode as ud
-from copy import deepcopy
+import copy
 from pptx.oxml.xmlchemy import OxmlElement
 
 from os.path import exists
@@ -45,12 +45,12 @@ AV_file = AV_path + AV_flnm
 LCR_flnm = "Staffing_data - LCR calc.xlsx"
 LCR_file = AV_path + LCR_flnm
 
-Promo_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/source samples/"
-Promo_flnm = "AI Ind Hub - promo slides.pptx"
-Promo_file = Promo_path + Promo_flnm
+# Promo_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/source samples/"
+# Promo_flnm = "Promo_template.pptx"
+# Promo_file = Promo_path + Promo_flnm
 
-App_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/"
-Sel_txt = CV_path + '/CVapp/sel_list.txt'
+# App_path = acn_path + "/OneDrive - Accenture/Documents/moje dokumenty/CVapp/"
+# Sel_txt = CV_path + '/CVapp/sel_list.txt'
 
 dest_path = acn_path + "/Desktop/"
 
@@ -198,19 +198,38 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
 
     # Uzyskujemy dostęp do listy identyfikatorów slajdów
     slide_ids = presentation.slides._sldIdLst
+    total_slides = len(slide_ids)
+# Definiowanie zakresów slajdów, które mają być zawsze zachowane
+    always_keep_first = 2
+    always_keep_last = 5
+
     # Iterujemy w odwrotnej kolejności, aby indeksy nie były zakłócane po usunięciu
-    for i in reversed(range(len(slide_ids))):
-        # Usuwamy slajd, jeśli jego indeks nie znajduje się w zbiorze do zachowania
-        if i+1 not in keep_slides_ids:
-            del slide_ids[i]
+    for i in reversed(range(total_slides)):
+        # Sprawdzamy, czy slajd jest poza zakresem pierwszych 'always_keep_first' i ostatnich 'always_keep_last' slajdów
+        if i >= always_keep_first and i < total_slides - always_keep_last:
+            # Usuwamy slajd tylko jeśli nie jest w zbiorze do zachowania
+            if (i+1) not in keep_slides_ids:
+                del slide_ids[i]
 
     return presentation
+
+def copy_slides_from_to(source_pres, target_pres, slide_indices=None):
+    """ Kopiuje wybrane slajdy z prezentacji źródłowej do docelowej. 
+        Jeśli slide_indices jest None, kopiuje wszystkie slajdy.
+    """
+    if slide_indices is None:
+        slide_indices = range(len(source_pres.slides))
+    for i in slide_indices:
+        # Tworzenie nowego slajdu w prezentacji docelowej
+        xml_slides = target_pres.slides._sldIdLst
+        slide_id = copy.deepcopy(source_pres.slides[i]._element)
+        xml_slides.append(slide_id)
 
 def create_presentation(filtered_df, presentation, output_path):
     keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
     remove_unwanted_slides(presentation, keep_slides_ids)
     presentation.save(output_path)
-    
+
 
 def export_to_excel(df, filepath):
     df = df.rename(columns={
@@ -431,7 +450,7 @@ def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, d
         else:
             st.error("Please filter the data before exporting.")
 
-    st.write(st.session_state['filtered_df'])
+    #st.write(st.session_state['filtered_df'])
     if export_excel_button:
         # Logika eksportu do Excela
         if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
