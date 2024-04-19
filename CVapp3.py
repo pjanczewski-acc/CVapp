@@ -8,14 +8,14 @@ Created on Mon Jul 11 15:16:27 2022
 import os
 import uuid
 import json
-import openai
+#import openai
 import pandas as pd
 import datetime as dt
 import streamlit as st
 import unidecode as ud
 import copy
 from pptx.oxml.xmlchemy import OxmlElement
-
+from datetime import datetime
 from os.path import exists
 from pptx import Presentation
 from unidecode import unidecode
@@ -107,17 +107,23 @@ av_sl = 0
 
 # Scraping the pptx to produce a table with slidenums, names and positions
 def scrap_CVs(CVprs):
+   # CVprs.SectionList.RemoveAt(1)
     CVprs = Presentation(open(CV_file, "rb"))
+
+    
     shape_list = []
+    skip_slides = [1, 2]  # Slajdy do pominięcia
 
     for slide in CVprs.slides:
-
         sld_nm = CVprs.slides.index(slide) + 1
+
+        if sld_nm in skip_slides:
+            continue  # Pomijamy przetwarzanie tego slajdu
+
         sldnt = slide.notes_slide
         if sldnt.notes_text_frame:
             sldnt_text = sldnt.notes_text_frame.text
 
-            # Check if the shape is a text shape and if it has text
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = "\n".join([paragraph.text for paragraph in shape.text_frame.paragraphs])
@@ -141,8 +147,6 @@ def scrap_CVs(CVprs):
                 shape_list.append(shape_properties)
 
         shapes_df = pd.DataFrame(shape_list)
-
-        # Map shape names to sections using shape_name_dict
         shapes_df['section'] = 'Other'
         shapes_df.loc[shapes_df['name'].str.startswith('Picture'), 'section'] = 'Picture'
         shapes_df.loc[shapes_df['name'].str.startswith('Text Pl'), 'section'] = shapes_df['name'].apply(
@@ -201,29 +205,18 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
     total_slides = len(slide_ids)
 # Definiowanie zakresów slajdów, które mają być zawsze zachowane
     always_keep_first = 2
-    always_keep_last = 5
+    always_keep_last = 3
 
     # Iterujemy w odwrotnej kolejności, aby indeksy nie były zakłócane po usunięciu
     for i in reversed(range(total_slides)):
         # Sprawdzamy, czy slajd jest poza zakresem pierwszych 'always_keep_first' i ostatnich 'always_keep_last' slajdów
-        if i >= always_keep_first and i < total_slides - always_keep_last:
+        if (i >= always_keep_first and i < total_slides - (3 + always_keep_last)):
             # Usuwamy slajd tylko jeśli nie jest w zbiorze do zachowania
             if (i+1) not in keep_slides_ids:
                 del slide_ids[i]
 
     return presentation
 
-def copy_slides_from_to(source_pres, target_pres, slide_indices=None):
-    """ Kopiuje wybrane slajdy z prezentacji źródłowej do docelowej. 
-        Jeśli slide_indices jest None, kopiuje wszystkie slajdy.
-    """
-    if slide_indices is None:
-        slide_indices = range(len(source_pres.slides))
-    for i in slide_indices:
-        # Tworzenie nowego slajdu w prezentacji docelowej
-        xml_slides = target_pres.slides._sldIdLst
-        slide_id = copy.deepcopy(source_pres.slides[i]._element)
-        xml_slides.append(slide_id)
 
 def create_presentation(filtered_df, presentation, output_path):
     keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
@@ -395,9 +388,52 @@ def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_
     # Adding availability
     All_df["Avlbl"] = 14
     currweek = dt.date.today().isocalendar().week
-    All_df['Availability week num'] = All_df['First Availability Date'].dt.isocalendar().week
-    All_df['AVweeks'] = All_df['Availability week num'] - currweek
+    
+    # if pd.to_datetime(All_df['First Availability Date']) < datetime.now():
+    #     All_df['Availability week num'] = 0
+    #     All_df['AVweeks'] = 0
+    # else:
+    #     All_df['Availability week num'] = All_df['First Availability Date'].dt.isocalendar().week
+    #     All_df['AVweeks'] = All_df['Availability week num'] - currweek
+
+    # All_df['First Availability Date'] = pd.to_datetime(All_df['First Availability Date'], errors='coerce')
+
+    # Sprawdzenie, czy każda data w kolumnie 'First Availability Date' jest mniejsza niż dzisiejsza data
+    curr_date = pd.to_datetime(dt.datetime.now())
+    curr_year = curr_date.year
+  
+    All_df['First Availability Date'] = pd.to_datetime(All_df['First Availability Date'], errors='coerce')
+
+    # Sprawdzenie, czy rok daty jest wyższy niż obecny rok
+    mask_future_year = All_df['First Availability Date'].dt.year > curr_year
+
+    # Obliczenie tygodni do końca roku dla daty w przyszłym roku
+    weeks_to_end_of_year = 52 - dt.date.today().isocalendar().week
+
+    # Ustawienie wartości dla wierszy, które spełniają warunek przyszłego roku
+    All_df.loc[mask_future_year, 'Availability week num'] = weeks_to_end_of_year + All_df.loc[mask_future_year, 'First Availability Date'].dt.isocalendar().week
+    All_df.loc[mask_future_year, 'AVweeks'] = All_df.loc[mask_future_year, 'Availability week num'] - currweek
+
+    # Obliczenie numeru tygodnia dla dat w bieżącym roku
+    mask_current_year = All_df['First Availability Date'].dt.year == curr_year
+    current_year_dates = All_df.loc[mask_current_year, 'First Availability Date']
+
+    # Sprawdzenie, czy każda data w kolumnie 'First Availability Date' jest mniejsza niż dzisiejsza data
+    mask = All_df['First Availability Date'] < pd.to_datetime(dt.datetime.now())
+
+    # Ustawienie wartości dla wierszy, które spełniają warunek
+    All_df.loc[mask, 'Availability week num'] = 0
+    All_df.loc[mask, 'AVweeks'] = 0
+
+    # Obliczenie numeru tygodnia dla dat, które nie spełniają warunku
+    mask_current_year_and_future = mask_current_year & (current_year_dates >= pd.to_datetime(dt.datetime.now())) & ~mask_future_year
+    All_df.loc[mask_current_year_and_future, 'Availability week num'] = current_year_dates.dt.isocalendar().week
+    All_df.loc[mask_current_year_and_future, 'AVweeks'] = All_df.loc[mask_current_year_and_future, 'Availability week num'] - currweek
+
+    
+    All_df['AV'] = 0
     All_df.loc[All_df['AVweeks'] <= av_sl, 'AV'] = 1
+
 
     # Flitering criteria
     for index, row in All_df.iterrows():
@@ -465,7 +501,9 @@ def final_export(filtered_df, CVprs, seniority_checks, person_checks, kwd_inp, d
 
     st.markdown("For help, visit [YouTube](https://www.youtube.com/watch?v=WNnzw90vxrE)")
 
-
+    st.info("Before using the application, please ensure that all data is up-to-date.")
+    st.info("The application reads the employee's level based on the export file from MyScheduling. Also, make sure you have the latest CV presentations for all team members.")
+    st.info("Note! If there is a CV for a particular person in the presentation but it does not exist in the export file from MyScheduling, you will not see that person when filtering individuals. However, you can manually select them in the Preliminary Person list section. Additionally, if a person does not exist on the MyScheduling list, their Level will be set to 'NaN'.")
 ##############
 # PAGE SET UP
 ##############
