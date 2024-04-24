@@ -182,81 +182,6 @@ def load_inputs(AV_file, LCR_file, names_df):
     All_df = All_df.dropna(subset=['sld_nm'])
     return All_df
 
-def remove_unwanted_slides(presentation, keep_slides_ids):
-    """
-    Usuwa slajdy, które nie znajdują się w podanym zbiorze identyfikatorów.
-    Args:
-    presentation (Presentation): Obiekt prezentacji.
-    keep_slides_ids (set): Zbiór identyfikatorów slajdów do zachowania.
-    """
-    keep_slides_ids = set(map(lambda x: int(float(x)), keep_slides_ids)) # Konwersja na zestaw liczb całkowitych
-
-    # Uzyskujemy dostęp do listy identyfikatorów slajdów
-    slide_ids = presentation.slides._sldIdLst
-    # Iterujemy w odwrotnej kolejności, aby indeksy nie były zakłócane po usunięciu
-    for i in reversed(range(len(slide_ids))):
-        # Usuwamy slajd, jeśli jego indeks nie znajduje się w zbiorze do zachowania
-        if i+1 not in keep_slides_ids:
-            del slide_ids[i]
-
-    return presentation
-
-def create_presentation(filtered_df, presentation, output_path):
-    keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
-    print("==============================================================")
-    print("Wew create pres")
-    print(keep_slides_ids)
-    remove_unwanted_slides(presentation, keep_slides_ids)
-    presentation.save(output_path)
-    
-
-def export_to_excel(df, filepath):
-    df = df.rename(columns={
-    'Resource Name': 'Name',
-    'Management Level': 'Position Level'
-    })
-
-    # Konwersja i formatowanie daty
-    if 'First Availability Date' in df.columns:
-        df['First Availability Date'] = pd.to_datetime(df['First Availability Date']).dt.strftime('%d.%m.%Y')
-
-    # Filtruj DataFrame, aby zawierał tylko potrzebne kolumny
-    columns_to_export = ['Name', 'EID', 'People Lead', 'Position Level', 'First Availability Date', 'LCR in $']
-    
-    # Sprawdzanie, czy wszystkie wymagane kolumny są w DataFrame
-    if all(column in df.columns for column in columns_to_export):
-        fil_df = df[columns_to_export]
-        print(fil_df)
-        
-        # Eksportowanie do pliku Excel
-        with pd.ExcelWriter(filepath, engine='openpyxl', mode='w') as writer:
-            fil_df.to_excel(writer, index=False)
-        print(f"Data exported successfully to {filepath}")
-    else:
-        missing_columns = [column for column in columns_to_export if column not in df.columns]
-        print(f"Missing columns in DataFrame: {missing_columns}")
-
-# def keepSlides(keepID, prs):
-#     # get slides to delete
-#     ids = [x for x in range(1, len(prs.slides._sldIdLst) + 1) if x not in keepID]
-
-#     # subset report
-#     for i, slide in enumerate(prs.slides):
-#         # create slide dict
-#         id_dict = {slide.id: [i, slide.rId] for i, slide in enumerate(prs.slides._sldIdLst)}
-
-#         # iterate thorugh indexes
-#         if i + 1 in ids:
-#             # get slide id
-#             slide_id = slide.slide_id
-
-#             # remove slide
-#             prs.part.drop_rel(id_dict[slide_id][1])
-#             del prs.slides._sldIdLst[id_dict[slide_id][0]]
-
-#     return prs
-
-
 # def kwdlookup(kwd_input, sld):
 #     kwds = kwd_input.lower()
 #     if 'and' in kwds:
@@ -281,7 +206,6 @@ def export_to_excel(df, filepath):
 #     elif kwds == '': kwd_fnd = 1
 
 #     return kwd_fnd
-
 
 def initial_selection(All_df, shapes_df):
     st.markdown("Specify criteria to export one-slider CVs")
@@ -339,7 +263,6 @@ def initial_selection(All_df, shapes_df):
     listed = st.button("Filter people for final selection")
     if listed:
         filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
-        
 
     # Displaying people for final approval
     filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
@@ -347,8 +270,6 @@ def initial_selection(All_df, shapes_df):
     if not filtered_df.empty:
         st.session_state['filtered_df'] = filtered_df
         st.session_state['first_filtered'] = filtered_df
-
-    
     
     with st.expander("Filtered people list"):
         if not st.session_state['first_filtered'].empty:
@@ -400,22 +321,64 @@ def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_
             All_df.loc[index, 'Select'] = True
             All_df.loc[index, 'AV'] = 1
 
-            # Displaying people for final approval
-            filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
-            print("==============================================================")
-            print("Zaraz po filtrowaniu")
-            print(filtered_df['Worker'].to_list())
-        
-        with st.expander("Filtered people list"):
-            for index, row in filtered_df.iterrows():
-                st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+def export_to_excel(df, filepath):
+    df = df.rename(columns={
+    'Resource Name': 'Name',
+    'Management Level': 'Position Level'
+    })
 
+    # Konwersja i formatowanie daty
+    if 'First Availability Date' in df.columns:
+        df['First Availability Date'] = pd.to_datetime(df['First Availability Date']).dt.strftime('%d.%m.%Y')
+
+    # Filtruj DataFrame, aby zawierał tylko potrzebne kolumny
+    columns_to_export = ['Name', 'EID', 'People Lead', 'Position Level', 'First Availability Date', 'LCR in $']
+    
+    # Sprawdzanie, czy wszystkie wymagane kolumny są w DataFrame
+    if all(column in df.columns for column in columns_to_export):
+        fil_df = df[columns_to_export]
+        print(fil_df)
+        
+        # Eksportowanie do pliku Excel
+        with pd.ExcelWriter(filepath, engine='openpyxl', mode='w') as writer:
+            fil_df.to_excel(writer, index=False)
+        print(f"Data exported successfully to {filepath}")
+    else:
+        missing_columns = [column for column in columns_to_export if column not in df.columns]
+        print(f"Missing columns in DataFrame: {missing_columns}")
+
+def remove_unwanted_slides(presentation, keep_slides_ids):
+    """
+    Usuwa slajdy, które nie znajdują się w podanym zbiorze identyfikatorów.
+    Args:
+    presentation (Presentation): Obiekt prezentacji.
+    keep_slides_ids (set): Zbiór identyfikatorów slajdów do zachowania.
+    """
+    keep_slides_ids = set(map(lambda x: int(float(x)), keep_slides_ids)) # Konwersja na zestaw liczb całkowitych
+
+    # Uzyskujemy dostęp do listy identyfikatorów slajdów
+    slide_ids = presentation.slides._sldIdLst
+    # Iterujemy w odwrotnej kolejności, aby indeksy nie były zakłócane po usunięciu
+    for i in reversed(range(len(slide_ids))):
+        # Usuwamy slajd, jeśli jego indeks nie znajduje się w zbiorze do zachowania
+        if i+1 not in keep_slides_ids:
+            del slide_ids[i]
+
+    return presentation
+    
+def create_presentation(filtered_df, presentation, output_path):
+    keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
+    print("==============================================================")
+    print("Wew create pres")
+    print(keep_slides_ids)
+    remove_unwanted_slides(presentation, keep_slides_ids)
+    presentation.save(output_path)
 
 def final_export(filtered_df):
     # Final export 
 
     with st.form("CV export", clear_on_submit=False):
-        dest = st.text_input("Enter the directory path to save the file:", "path/to/directory")
+        dest = st.text_input("Enter the directory path to save the CV pptx file:", "path/to/directory")
         out_fn = st.text_input("Output file name", "CVs_free.pptx")
         submit_button = st.form_submit_button("Export all slides for the filtered people list")
         
@@ -429,17 +392,20 @@ def final_export(filtered_df):
         else:
             st.error("Please filter the data before exporting.")
 
-    # if export_excel_button:
-    #     # Logika eksportu do Excela
-    #     if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
-    #         filtered_df = st.session_state['filtered_df']
-    #         if not out_fn_excel:
-    #             out_fn = "AI Ind Hub CVs table.xlsx"  
-    #         output_path = f"{dest}/{out_fn_excel if out_fn_excel.endswith('.xlsx') else out_fn_excel + '.xlsx'}"
-    #         export_to_excel(filtered_df, output_path)
-    #         st.success(f"Data exported successfully to {output_path}")
-    #     else:
-    #         st.error("Please filter the data before exporting.")
+    with st.form("LCR and availability export", clear_on_submit=False):
+        export_excel_button = st.form_submit_button("Export data to excel")
+        out_fn_excel = st.text_input("Output file name", "CVs_free.xlsx")
+        if export_excel_button:
+            # Logika eksportu do Excela
+            if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
+                filtered_df = st.session_state['filtered_df']
+                if not out_fn_excel:
+                    out_fn = "AI Ind Hub CVs table.xlsx"  
+                output_path = f"{dest}/{out_fn_excel if out_fn_excel.endswith('.xlsx') else out_fn_excel + '.xlsx'}"
+                export_to_excel(filtered_df, output_path)
+                st.success(f"Data exported successfully to {output_path}")
+            else:
+                st.error("Please filter the data before exporting.")
 
     st.markdown("For help, visit [YouTube](https://www.youtube.com/watch?v=WNnzw90vxrE)")
 
@@ -460,4 +426,5 @@ All_df = load_inputs(AV_file, LCR_file, names_df)
 
 filtered_df = initial_selection(All_df, shapes_df)
 
-final_export(filtered_df)
+if listed:
+    final_export(filtered_df)
