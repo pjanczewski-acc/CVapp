@@ -50,6 +50,13 @@ dest_path = acn_path + "/Desktop/"
 # Dictionaries & initial parameters
 ##############
 
+if 'filtered_df' not in st.session_state:
+    st.session_state['filtered_df'] = pd.DataFrame()
+
+if 'first_filtered' not in st.session_state:
+    st.session_state['first_filtered'] = pd.DataFrame()
+
+
 # Dictionary of shape names
 shape_name_dict = {'Text Placeholder 1': 'About me',
                    'Text Placeholder 2': 'Industry experience',
@@ -86,57 +93,58 @@ dpt_Oth = False
 
 av_sl = 0
 
-filtered_df = pd.DataFrame()
-
 ##############
 # Functions
 ##############
 
 # Scraping the pptx to produce a table with slidenums, names and positions
-def scrap_CVs(CVprs):
+def scrap_CVs(CV_file):
     CVprs = Presentation(open(CV_file, "rb"))
     shape_list = []
 
-    for slide in CVprs.slides:
+    # Define the range of slides to exclude
+    slides_to_exclude = set(range(1, 3)).union(set(range(len(CVprs.slides) - 6, len(CVprs.slides) + 1)))
 
+    for slide in CVprs.slides:
         sld_nm = CVprs.slides.index(slide) + 1
+        if sld_nm in slides_to_exclude:
+            continue  # Skip slides to exclude
         sldnt = slide.notes_slide
         if sldnt.notes_text_frame:
             sldnt_text = sldnt.notes_text_frame.text
 
-            # Check if the shape is a text shape and if it has text
+        # Check if the shape is a text shape and if it has text
         for shape in slide.shapes:
             if shape.has_text_frame:
                 text = "\n".join([paragraph.text for paragraph in shape.text_frame.paragraphs])
+                if "4" in shape.name:
+                    if "data scien" in text.lower():
+                        dept = "Data Science"
+                    elif "data engineer" in text.lower():
+                        dept = "Data Engineering"
+                    else:
+                        dept = "Other"
 
-            if "4" in shape.name:
-                if "data scien" in text.lower():
-                    dept = "Data Science"
-                elif "data engineer" in text.lower():
-                    dept = "Data Engineering"
-                else:
-                    dept = "Other"
+                    shape_properties = {
+                        'sld_nm': sld_nm,
+                        'sld_nt': sldnt_text,
+                        'name': shape.name,
+                        'Dept': dept,
+                        'text': text.strip()
+                    }
 
-                shape_properties = {
-                    'sld_nm': sld_nm,
-                    'sld_nt': sldnt_text,
-                    'name': shape.name,
-                    'Dept': dept,
-                    'text': text.strip()
-                }
+                    shape_list.append(shape_properties)
 
-                shape_list.append(shape_properties)
+    shapes_df = pd.DataFrame(shape_list)
 
-        shapes_df = pd.DataFrame(shape_list)
+    # Map shape names to sections using shape_name_dict
+    shapes_df['section'] = 'Other'
+    shapes_df.loc[shapes_df['name'].str.startswith('Picture'), 'section'] = 'Picture'
+    shapes_df.loc[shapes_df['name'].str.startswith('Text Pl'), 'section'] = shapes_df['name'].apply(
+        lambda x: shape_name_dict.get(x, 'else'))
 
-        # Map shape names to sections using shape_name_dict
-        shapes_df['section'] = 'Other'
-        shapes_df.loc[shapes_df['name'].str.startswith('Picture'), 'section'] = 'Picture'
-        shapes_df.loc[shapes_df['name'].str.startswith('Text Pl'), 'section'] = shapes_df['name'].apply(
-            lambda x: shape_name_dict.get(x, 'else'))
-
-        names_df = shapes_df[['sld_nm', 'sld_nt', 'Dept']].drop_duplicates()
-        names_df = names_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
+    names_df = shapes_df[['sld_nm', 'sld_nt', 'Dept']].drop_duplicates()
+    names_df = names_df.applymap(lambda x: x.lower() if isinstance(x, str) else x)
 
     return shapes_df, names_df, CVprs
 
@@ -181,22 +189,52 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
     presentation (Presentation): Obiekt prezentacji.
     keep_slides_ids (set): Zbiór identyfikatorów slajdów do zachowania.
     """
-    slides_to_remove = [slide for slide in presentation.slides if str(slide.slide_id) not in keep_slides_ids]
+    keep_slides_ids = set(map(lambda x: int(float(x)), keep_slides_ids)) # Konwersja na zestaw liczb całkowitych
 
-    # Remove slides
-    for slide in slides_to_remove:
-        presentation.slides.remove(slide)
+    # Uzyskujemy dostęp do listy identyfikatorów slajdów
+    slide_ids = presentation.slides._sldIdLst
+    # Iterujemy w odwrotnej kolejności, aby indeksy nie były zakłócane po usunięciu
+    for i in reversed(range(len(slide_ids))):
+        # Usuwamy slajd, jeśli jego indeks nie znajduje się w zbiorze do zachowania
+        if i+1 not in keep_slides_ids:
+            del slide_ids[i]
 
     return presentation
 
 def create_presentation(filtered_df, presentation, output_path):
-    print('sld_nm list')
-    print(filtered_df['sld_nm'].to_list())
-    keep_slides_ids = filtered_df['sld_nm'].astype(str)
-    print("keep_slides_ids w create_presentation")
+    keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
+    print("==============================================================")
+    print("Wew create pres")
     print(keep_slides_ids)
-    presentation = remove_unwanted_slides(presentation, keep_slides_ids)
+    remove_unwanted_slides(presentation, keep_slides_ids)
     presentation.save(output_path)
+    
+
+def export_to_excel(df, filepath):
+    df = df.rename(columns={
+    'Resource Name': 'Name',
+    'Management Level': 'Position Level'
+    })
+
+    # Konwersja i formatowanie daty
+    if 'First Availability Date' in df.columns:
+        df['First Availability Date'] = pd.to_datetime(df['First Availability Date']).dt.strftime('%d.%m.%Y')
+
+    # Filtruj DataFrame, aby zawierał tylko potrzebne kolumny
+    columns_to_export = ['Name', 'EID', 'People Lead', 'Position Level', 'First Availability Date', 'LCR in $']
+    
+    # Sprawdzanie, czy wszystkie wymagane kolumny są w DataFrame
+    if all(column in df.columns for column in columns_to_export):
+        fil_df = df[columns_to_export]
+        print(fil_df)
+        
+        # Eksportowanie do pliku Excel
+        with pd.ExcelWriter(filepath, engine='openpyxl', mode='w') as writer:
+            fil_df.to_excel(writer, index=False)
+        print(f"Data exported successfully to {filepath}")
+    else:
+        missing_columns = [column for column in columns_to_export if column not in df.columns]
+        print(f"Missing columns in DataFrame: {missing_columns}")
 
 # def keepSlides(keepID, prs):
 #     # get slides to delete
@@ -301,22 +339,29 @@ def initial_selection(All_df, shapes_df):
     listed = st.button("Filter people for final selection")
     if listed:
         filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl)
+        
 
-        # Displaying people for final approval
-        st.session_state.filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
-        filtered_df = st.session_state.filtered_df
-       
-        print("======================================")
-        print(filtered_df['sld_nm'].to_list())
+    # Displaying people for final approval
+    filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
 
-        with st.expander("Filtered people list"):
-            for index, row in filtered_df.iterrows():
-                st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+    if not filtered_df.empty:
+        st.session_state['filtered_df'] = filtered_df
+        st.session_state['first_filtered'] = filtered_df
 
-        filtered_df.to_csv("filtered_df.csv")
+    
+    
+    with st.expander("Filtered people list"):
+        if not st.session_state['first_filtered'].empty:
+            for index, row in st.session_state['first_filtered'].iterrows():
+                checked=st.checkbox(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}", value=True)
+                st.session_state['filtered_df'].loc[index, 'Select'] = checked
+
+    if not st.session_state['filtered_df'].empty:
+        st.session_state['filtered_df'] = st.session_state['filtered_df'][st.session_state['filtered_df']['Select'] == True]
+
+    return st.session_state.get('filtered_df', pd.DataFrame())
 
 def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_Oth, av_sl):
-    print('Success!')
     active_filters_count =0
     # Counting active filters
     if any(seniority_checks.values()):
@@ -355,23 +400,46 @@ def filter_people(seniority_checks, person_checks, kwd_inp, dpt_DS, dpt_DE, dpt_
             All_df.loc[index, 'Select'] = True
             All_df.loc[index, 'AV'] = 1
 
-def final_export(filtered_df, CVprs):
+            # Displaying people for final approval
+            filtered_df = All_df[(All_df['Select'] == True) & (All_df['AV'] ==1)]
+            print("==============================================================")
+            print("Zaraz po filtrowaniu")
+            print(filtered_df['Worker'].to_list())
+        
+        with st.expander("Filtered people list"):
+            for index, row in filtered_df.iterrows():
+                st.text(f"{row['Worker']} - {row['Dept']} - Level {row['Level']} - AV {row['AVweeks']}")
+
+
+def final_export(filtered_df):
     # Final export 
 
-    dest = st.text_input("Enter the directory path to save the file:", acn_path)
-    out_fn = st.text_input("Output file name", "CVs_free.pptx")
-    export_button = st.button("Export all slides for the filtered people list")
-     
-    if export_button:
-        filtered_df = pd.read_csv("filtered_df.csv")
-        print("======================================")
-        print("Tuż po przycisku eksport")
-        print(filtered_df['sld_nm'].to_list())
-        if not out_fn:
-            out_fn = "AI Ind Hub CVs for .pptx"  
-        output_path = f"{dest}/{out_fn if out_fn.endswith('.pptx') else out_fn + '.pptx'}"
-        create_presentation(filtered_df, CVprs, output_path)
-        st.success(f"Exported successfully to {output_path}")
+    with st.form("CV export", clear_on_submit=False):
+        dest = st.text_input("Enter the directory path to save the file:", "path/to/directory")
+        out_fn = st.text_input("Output file name", "CVs_free.pptx")
+        submit_button = st.form_submit_button("Export all slides for the filtered people list")
+        
+        if submit_button:
+            if not out_fn:
+                out_fn = "AI Ind Hub CVs for .pptx"  
+            output_path = f"{dest}/{out_fn if out_fn.endswith('.pptx') else out_fn + '.pptx'}"
+
+            create_presentation(filtered_df, CVprs, output_path)
+            st.success(f"Exported successfully to {output_path}")
+        else:
+            st.error("Please filter the data before exporting.")
+
+    # if export_excel_button:
+    #     # Logika eksportu do Excela
+    #     if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
+    #         filtered_df = st.session_state['filtered_df']
+    #         if not out_fn_excel:
+    #             out_fn = "AI Ind Hub CVs table.xlsx"  
+    #         output_path = f"{dest}/{out_fn_excel if out_fn_excel.endswith('.xlsx') else out_fn_excel + '.xlsx'}"
+    #         export_to_excel(filtered_df, output_path)
+    #         st.success(f"Data exported successfully to {output_path}")
+    #     else:
+    #         st.error("Please filter the data before exporting.")
 
     st.markdown("For help, visit [YouTube](https://www.youtube.com/watch?v=WNnzw90vxrE)")
 
@@ -390,6 +458,6 @@ hide_streamlit_style = """
 shapes_df, names_df, CVprs = scrap_CVs(CV_file)
 All_df = load_inputs(AV_file, LCR_file, names_df)
 
-initial_selection(All_df, shapes_df)
+filtered_df = initial_selection(All_df, shapes_df)
 
-final_export(filtered_df, CVprs)
+final_export(filtered_df)
