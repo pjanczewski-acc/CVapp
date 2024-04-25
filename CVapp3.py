@@ -34,26 +34,26 @@ LCR_file = St_path + "00_archive/Staffing_data%20-%20LCR%20calc.xlsx?d=wefecb6ad
 
 
 # Download & readn the PowerPoint file
-print(CV_file)
+st.write(CV_file)
 pptx_response = requests.get(CV_file)
 pptx_content = BytesIO(pptx_response.content)
 pptx_prs = Presentation(pptx_content)
 CV_file = pptx_content
-print("CVprs read success!")
+st.write("CVprs read success!")
 
 # Download & read the Excel files
-print(AV_file)
+st.write(AV_file)
 excel_response = requests.get(AV_file)
 excel_content = BytesIO(excel_response.content)
 excel_df = pd.read_excel(excel_content)
 AV_file = excel_content
-print("AV_file read success")
-print(LCR_file)
+st.write("AV_file read success")
+st.write(LCR_file)
 excel_response = requests.get(LCR_file)
 excel_content = BytesIO(excel_response.content)
 excel_df = pd.read_excel(excel_content)
 LCR_file = excel_content
-print("LCR_file read success")
+st.write("LCR_file read success")
 
 
 ##############
