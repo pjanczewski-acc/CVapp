@@ -12,6 +12,8 @@ import unidecode as ud
 import datetime as dt
 import streamlit as st
 from pptx import Presentation
+import requests
+from io import BytesIO
 
 st.set_page_config(page_title="AI Industry Hub CV select",
                    layout="wide",
@@ -20,31 +22,58 @@ st.set_page_config(page_title="AI Industry Hub CV select",
 
 
 ##############
-# Input file locations and names
+# Input file locations and names - to be used from online location
 ##############
 
-acn_login = os.getlogin()
-acn_path = "C:/Users/" + acn_login
+WA_path = "https://ts.accenture.com/:p:/r/sites/Warsaw-Analytics/"
+CV_file = WA_path + "docs/01_CVs/Warsaw_Analytics_FY23_template.pptx?d=w581a53a34d5a4f75b498971de0e2b9ab&csf=1&web=1&e=mdf0AW"
 
-CV_path = acn_path + "/Accenture/Warsaw Analytics - Documents/01_CVs/"
-CV_flnm = "Warsaw_Analytics_FY23_template.pptx"
-CV_file = CV_path + CV_flnm
+St_path = "https://ts.accenture.com/:x:/r/sites/StaffingproductivityAIgroup/Shared%20Documents/General/Dashboard/"
+AV_file = St_path + "Certificates_MySch/myScheduling_People_Extract.xlsx?d=w51213d5f58c245d7a560b4f3baacebb3&csf=1&web=1&e=3Fm3Jd"
+LCR_file = St_path + "00_archive/Staffing_data%20-%20LCR%20calc.xlsx?d=wefecb6ad6e8646088c713cdaadb1900e&csf=1&web=1&e=JQWETN"
 
-AV_path = acn_path + "/Accenture/Staffing & productivity AI group - General/Dashboard/"
-AV_flnm = "myScheduling_People_Extract.xlsx"
-AV_file = AV_path + AV_flnm
 
-LCR_flnm = "Staffing_data - LCR calc.xlsx"
-LCR_file = AV_path + LCR_flnm
+# Download & readn the PowerPoint file
+print(CV_file)
+pptx_response = requests.get(CV_file)
+pptx_content = BytesIO(pptx_response.content)
+pptx_prs = Presentation(pptx_content)
+CV_file = pptx_content
+print("CVprs read success!")
 
-Promo_path = acn_path + "/Accenture/AI Executives Warsaw - General/"
-Promo_flnm = "AI Ind Hub - promo slides.pptx"
-Promo_file = Promo_path + Promo_flnm
+# Download & read the Excel files
+print(AV_file)
+excel_response = requests.get(AV_file)
+excel_content = BytesIO(excel_response.content)
+excel_df = pd.read_excel(excel_content)
+AV_file = excel_content
+print("AV_file read success")
+print(LCR_file)
+excel_response = requests.get(LCR_file)
+excel_content = BytesIO(excel_response.content)
+excel_df = pd.read_excel(excel_content)
+LCR_file = excel_content
+print("LCR_file read success")
 
-App_path = acn_path + "/Desktop/genAI/CVapp"
-Sel_txt = CV_path + '/CVapp/sel_list.txt'
 
-dest_path = acn_path + "/Desktop/"
+##############
+# Input file locations and names - to be used from local machine
+##############
+
+# acn_login = os.getlogin()
+# acn_path = "C:/Users/" + acn_login
+
+# CV_path = acn_path + "/Accenture/Warsaw Analytics - Documents/01_CVs/"
+# CV_flnm = "Warsaw_Analytics_FY23_template.pptx"
+# CV_file = CV_path + CV_flnm
+
+# AV_path = acn_path + "/Accenture/Staffing & productivity AI group - General/Dashboard/"
+# AV_flnm = "myScheduling_People_Extract.xlsx"
+# AV_file = AV_path + AV_flnm
+
+# LCR_flnm = "Staffing_data - LCR calc.xlsx"
+# LCR_file = AV_path + LCR_flnm
+
 
 ##############
 # Dictionaries & initial parameters
@@ -99,6 +128,7 @@ av_sl = 0
 
 # Scraping the pptx to produce a table with slidenums, names and positions
 def scrap_CVs(CV_file):
+
     CVprs = Presentation(open(CV_file, "rb"))
     shape_list = []
 
@@ -426,5 +456,4 @@ All_df = load_inputs(AV_file, LCR_file, names_df)
 
 filtered_df = initial_selection(All_df, shapes_df)
 
-if listed:
-    final_export(filtered_df)
+final_export(filtered_df)
