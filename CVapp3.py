@@ -12,8 +12,6 @@ import unidecode as ud
 import datetime as dt
 import streamlit as st
 from pptx import Presentation
-import requests
-from io import BytesIO
 
 st.set_page_config(page_title="AI Industry Hub CV select",
                    layout="wide",
@@ -22,42 +20,7 @@ st.set_page_config(page_title="AI Industry Hub CV select",
 
 
 ##############
-# Input file locations and names - to be used from online location
-##############
-
-WA_path = "https://ts.accenture.com/:p:/r/sites/Warsaw-Analytics/"
-CV_file = WA_path + "docs/01_CVs/Warsaw_Analytics_FY23_template.pptx?d=w581a53a34d5a4f75b498971de0e2b9ab&csf=1&web=1&e=mdf0AW"
-
-St_path = "https://ts.accenture.com/:x:/r/sites/StaffingproductivityAIgroup/Shared%20Documents/General/Dashboard/"
-AV_file = St_path + "Certificates_MySch/myScheduling_People_Extract.xlsx?d=w51213d5f58c245d7a560b4f3baacebb3&csf=1&web=1&e=3Fm3Jd"
-LCR_file = St_path + "00_archive/Staffing_data%20-%20LCR%20calc.xlsx?d=wefecb6ad6e8646088c713cdaadb1900e&csf=1&web=1&e=JQWETN"
-
-
-# Download & readn the PowerPoint file
-st.write(CV_file)
-pptx_response = requests.get(CV_file)
-pptx_content = BytesIO(pptx_response.content)
-pptx_prs = Presentation(pptx_content)
-CV_file = pptx_content
-st.write("CVprs read success!")
-
-# Download & read the Excel files
-st.write(AV_file)
-excel_response = requests.get(AV_file)
-excel_content = BytesIO(excel_response.content)
-excel_df = pd.read_excel(excel_content)
-AV_file = excel_content
-st.write("AV_file read success")
-st.write(LCR_file)
-excel_response = requests.get(LCR_file)
-excel_content = BytesIO(excel_response.content)
-excel_df = pd.read_excel(excel_content)
-LCR_file = excel_content
-st.write("LCR_file read success")
-
-
-##############
-# Input file locations and names - to be used from local machine
+# Input file locations and names - for local use
 ##############
 
 # acn_login = os.getlogin()
@@ -74,10 +37,30 @@ st.write("LCR_file read success")
 # LCR_flnm = "Staffing_data - LCR calc.xlsx"
 # LCR_file = AV_path + LCR_flnm
 
+##############
+# Input file locations and names - for online POC
+##############
+
+acn_path = "source samples/" 
+
+CV_path = acn_path
+CV_flnm = "Warsaw_Analytics_FY23.pptx"
+CV_file = CV_path + CV_flnm
+
+AV_path = acn_path
+AV_flnm = "myScheduling_People_Extract.xlsx"
+AV_file = AV_path + AV_flnm
+
+LCR_flnm = "Staffing_data - LCR calc.xlsx"
+LCR_file = AV_path + LCR_flnm
 
 ##############
 # Dictionaries & initial parameters
 ##############
+
+photo_adj_slides = 4
+init_promo_slides = 2
+final_promo_slides = 3
 
 if 'filtered_df' not in st.session_state:
     st.session_state['filtered_df'] = pd.DataFrame()
@@ -128,13 +111,13 @@ av_sl = 0
 
 # Scraping the pptx to produce a table with slidenums, names and positions
 def scrap_CVs(CV_file):
-
     CVprs = Presentation(open(CV_file, "rb"))
     shape_list = []
 
     # Define the range of slides to exclude
-    slides_to_exclude = set(range(1, 3)).union(set(range(len(CVprs.slides) - 6, len(CVprs.slides) + 1)))
-
+    slides_to_exclude = set(range(1, init_promo_slides+1))
+    fin_excl = photo_adj_slides + final_promo_slides
+    slides_to_exclude = slides_to_exclude.union(set(range(len(CVprs.slides) - fin_excl + 1, len(CVprs.slides) + 1)))
     for slide in CVprs.slides:
         sld_nm = CVprs.slides.index(slide) + 1
         if sld_nm in slides_to_exclude:
@@ -270,13 +253,14 @@ def initial_selection(All_df, shapes_df):
         dpt_DE = st.checkbox("Data Engineering")
         dpt_Oth = st.checkbox("Other")
 
-    with st.expander("Keywords"):
-        st.markdown("<p style='font-size:12px;'>" +
-                    "Use AND/OR (never both), eg.:<i>" +
-                    " 'machine learning AND Azure AND risk advisory' or " +
-                    " 'gcp OR Google Cloud Platform'</i></p>",
-                    unsafe_allow_html=True)
-        kwd_inp = st.text_input('Text to look up:')
+    # with st.expander("Keywords"):
+    #     st.markdown("<p style='font-size:12px;'>" +
+    #                 "Use AND/OR (never both), eg.:<i>" +
+    #                 " 'machine learning AND Azure AND risk advisory' or " +
+    #                 " 'gcp OR Google Cloud Platform'</i></p>",
+    #                 unsafe_allow_html=True)
+    #     kwd_inp = st.text_input('Text to look up:')
+        kwd_inp = '' # Dummy to remove after proper kwd search is defined
 
     All_df.reset_index(drop=True, inplace=True)
 
@@ -385,6 +369,14 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
     keep_slides_ids (set): Zbiór identyfikatorów slajdów do zachowania.
     """
     keep_slides_ids = set(map(lambda x: int(float(x)), keep_slides_ids)) # Konwersja na zestaw liczb całkowitych
+    
+    standard_slides_ids = {1, 2}
+    fin_excl = photo_adj_slides + final_promo_slides
+    
+    for i in range(len(CVprs.slides) - fin_excl + 1, len(CVprs.slides) - final_promo_slides + 1):
+        print(i)
+        standard_slides_ids.update({i})
+    keep_slides_ids.update(standard_slides_ids)
 
     # Uzyskujemy dostęp do listy identyfikatorów slajdów
     slide_ids = presentation.slides._sldIdLst
@@ -398,9 +390,6 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
     
 def create_presentation(filtered_df, presentation, output_path):
     keep_slides_ids = set(filtered_df['sld_nm'].astype(str))
-    print("==============================================================")
-    print("Wew create pres")
-    print(keep_slides_ids)
     remove_unwanted_slides(presentation, keep_slides_ids)
     presentation.save(output_path)
 
@@ -408,37 +397,21 @@ def final_export(filtered_df):
     # Final export 
 
     with st.form("CV export", clear_on_submit=False):
-        dest = st.text_input("Enter the directory path to save the CV pptx file:", "path/to/directory")
-        out_fn = st.text_input("Output file name", "CVs_free.pptx")
+        dest = st.text_input("Enter the directory path to save the CV and LCR files:", "path/to/directory")
+        out_fn_CVs = st.text_input("Output CV file name", "AI Ind Hub CVs for ___.pptx")
+        out_fn_LCR = st.text_input("Output LCR file name", "AI Ind Hub CVs for ___.xlsx")
         submit_button = st.form_submit_button("Export all slides for the filtered people list")
         
         if submit_button:
-            if not out_fn:
-                out_fn = "AI Ind Hub CVs for .pptx"  
-            output_path = f"{dest}/{out_fn if out_fn.endswith('.pptx') else out_fn + '.pptx'}"
-
-            create_presentation(filtered_df, CVprs, output_path)
-            st.success(f"Exported successfully to {output_path}")
+            output_path_CVs = f"{dest}/{out_fn_CVs if out_fn_CVs.endswith('.pptx') else out_fn_CVs + '.pptx'}"
+            output_path_LCR = f"{dest}/{out_fn_LCR if out_fn_LCR.endswith('.xlsx') else out_fn_LCR + '.xlsx'}"
+            create_presentation(filtered_df, CVprs, output_path_CVs)
+            export_to_excel(filtered_df, output_path_LCR)
+            st.success(f"Exported successfully to {dest}")
         else:
             st.error("Please filter the data before exporting.")
 
-    with st.form("LCR and availability export", clear_on_submit=False):
-        export_excel_button = st.form_submit_button("Export data to excel")
-        out_fn_excel = st.text_input("Output file name", "CVs_free.xlsx")
-        if export_excel_button:
-            # Logika eksportu do Excela
-            if 'filtered_df' in st.session_state and not st.session_state['filtered_df'].empty:
-                filtered_df = st.session_state['filtered_df']
-                if not out_fn_excel:
-                    out_fn = "AI Ind Hub CVs table.xlsx"  
-                output_path = f"{dest}/{out_fn_excel if out_fn_excel.endswith('.xlsx') else out_fn_excel + '.xlsx'}"
-                export_to_excel(filtered_df, output_path)
-                st.success(f"Data exported successfully to {output_path}")
-            else:
-                st.error("Please filter the data before exporting.")
-
     st.markdown("For help, visit [YouTube](https://www.youtube.com/watch?v=WNnzw90vxrE)")
-
 
 ##############
 # PAGE SET UP
