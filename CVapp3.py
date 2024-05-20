@@ -370,7 +370,12 @@ def remove_unwanted_slides(presentation, keep_slides_ids):
     """
     keep_slides_ids = set(map(lambda x: int(float(x)), keep_slides_ids)) # Konwersja na zestaw liczb całkowitych
     
-    standard_slides_ids = {1, 2}
+    # Sprawdzenie, czy jest 1 lub więcej init_promo_slides, budowa std_sld_ids
+    if init_promo_slides>0:
+        standard_slides_ids = {1}
+        for i in range(1,init_promo_slides +1):
+                keep_slides_ids.update({i})
+                
     fin_excl = photo_adj_slides + final_promo_slides
     
     for i in range(len(CVprs.slides) - fin_excl + 1, len(CVprs.slides) - final_promo_slides + 1):
